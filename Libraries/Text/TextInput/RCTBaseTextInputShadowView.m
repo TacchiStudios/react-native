@@ -112,8 +112,9 @@
   _text = text;
   // Clear `_previousAttributedText` to notify the view about the change
   // when `text` native prop is set.
-  _previousAttributedText = nil;
-  [self dirtyLayout];
+  // _previousAttributedText = nil;
+  _previousAttributedText = _localAttributedText;
+  // [self dirtyLayout];
 }
 
 #pragma mark - RCTUIManagerObserver
