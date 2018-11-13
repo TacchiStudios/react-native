@@ -37,10 +37,11 @@ import com.facebook.react.modules.core.PermissionListener;
 import com.facebook.react.shell.MainReactPackage;
 import com.facebook.react.testing.idledetection.ReactBridgeIdleSignaler;
 import com.facebook.react.testing.idledetection.ReactIdleDetectionUtil;
+import com.facebook.react.uimanager.events.EventDispatcher;
+import com.facebook.react.uimanager.UIImplementationProvider;
 import com.facebook.react.uimanager.UIManagerModule;
 import com.facebook.react.uimanager.ViewManager;
 import com.facebook.react.uimanager.ViewManagerRegistry;
-import com.facebook.react.uimanager.events.EventDispatcher;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -138,8 +139,12 @@ public class ReactAppTestActivity extends FragmentActivity
     loadApp(appKey, spec, null, DEFAULT_BUNDLE_NAME, enableDevSupport);
   }
 
-  public void loadApp(String appKey, ReactInstanceSpecForTest spec, String bundleName) {
-    loadApp(appKey, spec, null, bundleName, false /* = useDevSupport */);
+  public void loadApp(
+    String appKey,
+    ReactInstanceSpecForTest spec,
+    String bundleName,
+    UIImplementationProvider uiImplementationProvider) {
+    loadApp(appKey, spec, null, bundleName, false /* = useDevSupport */, uiImplementationProvider);
   }
 
   public void resetRootViewForScreenshotTests() {
@@ -162,7 +167,17 @@ public class ReactAppTestActivity extends FragmentActivity
       @Nullable Bundle initialProps,
       String bundleName,
       boolean useDevSupport) {
-    loadBundle(spec, bundleName, useDevSupport);
+    loadApp(appKey, spec, initialProps, bundleName, useDevSupport, null);
+  }
+
+  public void loadApp(
+    String appKey,
+    ReactInstanceSpecForTest spec,
+    @Nullable Bundle initialProps,
+    String bundleName,
+    boolean useDevSupport,
+    UIImplementationProvider uiImplementationProvider) {
+    loadBundle(spec, bundleName, useDevSupport, uiImplementationProvider);
     renderComponent(appKey, initialProps);
   }
 
@@ -199,7 +214,11 @@ public class ReactAppTestActivity extends FragmentActivity
           throw new RuntimeException("Layout never occurred for component " + appKey, e);}
   }
 
-  public void loadBundle(ReactInstanceSpecForTest spec, String bundleName, boolean useDevSupport) {
+  public void loadBundle(
+      ReactInstanceSpecForTest spec,
+      String bundleName,
+      boolean useDevSupport,
+      UIImplementationProvider uiImplementationProvider) {
 
     mBridgeIdleSignaler = new ReactBridgeIdleSignaler();
 
@@ -229,38 +248,31 @@ public class ReactAppTestActivity extends FragmentActivity
                   final ReactApplicationContext reactApplicationContext,
                   final JavaScriptContextHolder jsContext) {
                 return Arrays.<JSIModuleSpec>asList(
-                    new JSIModuleSpec() {
-                      @Override
-                      public Class<? extends JSIModule> getJSIModuleClass() {
-                        return UIManager.class;
-                      }
+                  new JSIModuleSpec() {
+                    @Override
+                    public Class<? extends JSIModule> getJSIModuleClass() {
+                      return UIManager.class;
+                    }
 
-                      @Override
-                      public JSIModuleProvider getJSIModuleProvider() {
-                        return new JSIModuleProvider() {
-                          @Override
-                          public FabricUIManager get() {
-                            List<ViewManager> viewManagers =
-                                mReactInstanceManager.getOrCreateViewManagers(
-                                    reactApplicationContext);
-                            EventDispatcher eventDispatcher =
-                                reactApplicationContext
-                                    .getNativeModule(UIManagerModule.class)
-                                    .getEventDispatcher();
-                            FabricUIManager fabricUIManager =
-                                new FabricUIManager(
-                                    reactApplicationContext,
-                                    new ViewManagerRegistry(viewManagers),
-                                    jsContext,
-                                    eventDispatcher);
-                            new FabricJSCBinding().installFabric(jsContext, fabricUIManager);
-                            return fabricUIManager;
-                          }
-                        };
-                      }
-                    });
-              }
-            });
+                    @Override
+                    public JSIModuleProvider getJSIModuleProvider() {
+                      return new JSIModuleProvider() {
+                        @Override
+                        public FabricUIManager get() {
+                          List<ViewManager> viewManagers =
+                            mReactInstanceManager.getOrCreateViewManagers(reactApplicationContext);
+                          EventDispatcher eventDispatcher =
+                            reactApplicationContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
+                          FabricUIManager fabricUIManager =
+                            new FabricUIManager(reactApplicationContext, new ViewManagerRegistry(viewManagers), jsContext, eventDispatcher);
+                          new FabricJSCBinding().installFabric(jsContext, fabricUIManager);
+                          return fabricUIManager;
+                        }
+                      };
+                    }
+                  });
+              }})
+        .setUIImplementationProvider(uiImplementationProvider);
 
     final CountDownLatch latch = new CountDownLatch(1);
     runOnUiThread(
